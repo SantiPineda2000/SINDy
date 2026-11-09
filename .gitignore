@@ -1,2 +1,5 @@
 # Ignoring virtual environment
 .venv
+
+# Ignoring generated assets
+/assets
