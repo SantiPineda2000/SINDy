@@ -12,7 +12,7 @@ Where $\xi>0$ are as few as possible, which allows solving for terms relevant to
 
 1. Collect time-series data into a matrix, and form a matrix of derivatives.
    $$
-   X = [x(t_1), x(t_2), \dots, x(t_m)]^{\top}\\
+   X = [x(t_1) \quad x(t_2) \quad \dots \quad x(t_m)]^{\top}\\
    \dot{X}= [\dot{x}(t_1) \quad \dot{x}(t_2) \quad \dots \quad \dot{x}(t_m)]^{\top}
    $$
    **_Note_**: _for noisy data use the total variational regularized derivative, or avoid derivatives using discrete-time systems._
