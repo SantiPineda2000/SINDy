@@ -1,0 +1,136 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{geometry}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=black]{hyperref}
+\usepackage[
+backend=biber,
+style=apa,
+hyperref=true
+]{biblatex}
+\addbibresource{references.bib} %Imports bibliography file
+\DefineBibliographyStrings{english}{
+  bibliography = {References},
+}
+\geometry{margin=1in}
+
+\title{Application and analysis of SINDy for wave propagation in damaged material}
+\author{Carlos Santiago Pineda Morales}
+\date{November 13th, 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Documentation of the methodology used for the application of SINDy and other data driven reduced order model techniques to the wave equation propagating through damaged material, theoretically modeled in 1 and 2 dimensions with partial differential equations, using manufactured solutions to verify the numerical approximations.
+\end{abstract}
+
+\section{Wave Equation Model}
+The model of the wave equation with a space-dependent wave speed $c(\mathbf{x}) > 0$. In spatial coordinates $\Omega \subset \mathbb{R}^d$ and time $t \in [0, T]$, is given by:
+\begin{equation}
+    u_{tt}(t, x) - c^2(x) \Delta u(t, x) = f(t, x) \quad \text{in } (0, T) \times \Omega,
+\end{equation}
+where $u_{tt} = \frac{\partial^2 u}{\partial t^2}$ represents the acceleration of the wave field, and $\Delta u = \frac{\partial^2 u}{\partial x_{1}^2} + ... + \frac{\partial^2 u}{\partial x_{d}^2}$ represents the spatial curvature (Laplacian).
+
+The problem is imposed with homogeneous Dirichlet boundary conditions and the initial conditions, where $u_{0}$ and $u_{1}$ are given functions,
+
+\begin{equation}
+    u(0, x) = u_{0}(x), \quad u_{t}(0, x) = u_{1}(x) \quad \text{in } \Omega
+\end{equation}
+
+The speed function $c(x)$ can be manipulated such that it has a decrease of speed in a particular point of $\Omega$ representing damaged area in the theoretical material.
+
+\section{1D Wave Equation Model}
+Using the suggested approach of manufactured solutions the wave equation was constructed with the following parameters:
+\begin{align}
+    \text{Spatial Domain:} & \quad \Omega = [0, 1] \\
+    \text{Time Horizon:} & \quad t \in [0, 1] \\
+    \text{Wave Speed:} & \quad c(x) = 1 + x \\
+    \text{Exact Solution:} & \quad u(t, x) = \sin(\pi x) \cos(t) \\
+    \text{Initial conditions} & \quad u_{0}(x)= \sin(\pi x), \quad u_{1} = 0
+\end{align}
+
+The homogeneous Dirichlet boundary conditions are satisfied since $\sin(\pi x)$ equals zero at the spatial domain $\Omega$ boundaries, that is, $\sin(\pi * 0) = 0$ and $\sin(\pi * 1) = 0$.
+
+Finally, the resulting source term matching the constructed wave equation is,
+\begin{align}
+    f(t, x) &= (\pi^{2} (1+x)^{2}-1) \sin(\pi x) \cos(t)
+\end{align}
+
+\section{Method of Finite Differences}
+
+In the lectures \cite{brunton2022_numerical_diff_1} and \cite{brunton2022_numerical_diff_2} functions $f(t) = \frac{dx}{dt}$ are approximated using numerical differentiation, the derivative formula $\frac{dx}{dt}= \lim_{\Delta t \rightarrow0} \frac{x(t+\Delta t)-x(t)}{\Delta t} \approx\frac{x(t+\Delta t)-x(t)}{\Delta t}$, yielding
+\begin{align}
+    f(x(t)) \approx \frac{x(t+\Delta t)-x(t)}{\Delta t} \implies x(t +\Delta t) \approx f(x(t)) \Delta t + x(t)
+\end{align}
+
+Using the Taylor expansion we can calculate the approximation error,
+\begin{align}
+    f(t + \Delta t) &= f(t) + \Delta t \, f'(t) + \frac{(\Delta t)^2}{2!} f''(t) + \frac{(\Delta t)^3}{3!} f^{(3)}(t) + \mathcal{O}(\Delta t^4) \\[8pt]
+    f(t - \Delta t) &= f(t) - \Delta t \, f'(t) + \frac{(\Delta t)^2}{2!} f''(t) - \frac{(\Delta t)^3}{3!} f^{(3)}(t) + \mathcal{O}(\Delta t^4)
+\end{align}
+
+We can approximate each derivative, also second derivatives, in three ways, forward difference (FD), backward difference (BD), and central difference (CD). Note that the central difference is the most accurate approximation, but due to problem specific constraints (eg. not having future or past data points) BD and FD are needed.
+\begin{enumerate}
+    \item Forward difference:
+    
+    The first derivative approximation,
+        \begin{align}
+            \frac{df}{dt} \approx \frac{f(t + \Delta t) -f(t)}{\Delta t} + \mathcal{O}(\Delta t)
+        \end{align}
+    Second derivative approximation,
+        \begin{align}
+            \frac{d^{2}f}{dt^{2}} \approx \frac{f(t + 2\Delta t) - 2f(t + \Delta t) + f(t)}{\Delta t^{2}} + \mathcal{O}(\Delta t)
+        \end{align}
+
+    \item Backward difference:
+
+    First derivative approximation,
+        \begin{align}
+            \frac{df}{dt} \approx \frac{f(t) - f(t - \Delta t)}{\Delta t} + \mathcal{O}(\Delta t)
+        \end{align}
+    Second derivative approximation,
+        \begin{align}
+            \frac{d^{2}f}{dt^{2}} \approx \frac{f(t) - 2f(t - \Delta t) + f(t - 2\Delta t)}{\Delta t^{2}} + \mathcal{O}(\Delta t)
+        \end{align}
+
+    \item Central difference:
+
+    First derivative approximation,
+        \begin{align}
+            \frac{df}{dt} \approx \frac{f(t + \Delta t) - f(t - \Delta t)}{2\Delta t} + \mathcal{O}(\Delta t^{2})
+        \end{align}
+    Second derivative approximation,
+        \begin{align}
+            \frac{d^{2}f}{dt^{2}} \approx \frac{f(t + \Delta t) - 2f(t) + f(t - \Delta t)}{\Delta t^{2}} + \mathcal{O}(\Delta t^{2})
+        \end{align}
+        
+\end{enumerate}
+
+\section{Solving 1D Equation Model with Finite Differences}
+
+Applying these schemes to our equations derivatives, $u_{tt}(t, x)$, and $\Delta u(t, x)$ we obtain,
+
+\begin{enumerate}
+    \item FD
+        \begin{align}
+            u_{tt}(t,x) &\approx \frac{u(t+2\Delta t, x) + u(t,x) - 2u(t+\Delta t, x)}{\Delta t^2} \\
+            \Delta u(t,x) &\approx \frac{u(t, x+2\Delta x) + u(t,x) - 2u(t, x+\Delta x)}{\Delta x^2}
+        \end{align}
+    \item BD
+        \begin{align}
+            u_{tt}(t,x) &\approx \frac{u(t-2\Delta t, x) + u(t,x) - 2u(t-\Delta t, x)}{\Delta t^2} \\
+            \Delta u(t,x) &\approx \frac{u(t, x-2\Delta x) + u(t,x) - 2u(t, x-\Delta x)}{\Delta x^2}
+        \end{align}
+    \item CD
+        \begin{align}
+            u_{tt}(t,x) &\approx \frac{u(t+\Delta t, x) - u(t,x) + u(t-\Delta t, x)}{\Delta t^2} \\
+            \Delta u(t,x) &\approx \frac{u(t, x+\Delta x) - u(t,x) + u(t, x-\Delta x)}{\Delta x^2}
+        \end{align}
+\end{enumerate}
+
+\clearpage
+\printbibliography
+
+\end{document}
