@@ -1,3 +1,6 @@
+# Ignoring python stuff
+__pycache__
+
 # Ignoring virtual environment
 .venv
 
