@@ -76,7 +76,9 @@ class Validate1D(BaseGraphingFunctions):
         
         `sub_dir`: optional subdirectory to save plots at.
         '''
-        assert U_num.shape == U_ext.shape, "Matrices cannot be compared!"
+        assert U_num.shape == U_ext.shape, (
+            f"Matrices of sizes {U_num.shape} and {U_ext.shape} cannot be compared!"
+            )
         super().__init__(sub_dir)
         self.U_num = U_num
         self.U_ext = U_ext
