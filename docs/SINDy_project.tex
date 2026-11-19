@@ -2,6 +2,8 @@
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{float}
 \usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=black]{hyperref}
 \usepackage[
 backend=biber,
@@ -71,64 +73,60 @@ Using the Taylor expansion we can calculate the approximation error,
     f(t - \Delta t) &= f(t) - \Delta t \, f'(t) + \frac{(\Delta t)^2}{2!} f''(t) - \frac{(\Delta t)^3}{3!} f^{(3)}(t) + \mathcal{O}(\Delta t^4)
 \end{align}
 
-We can approximate each derivative, also second derivatives, in three ways, forward difference (FD), backward difference (BD), and central difference (CD). Note that the central difference is the most accurate approximation, but due to problem specific constraints (eg. not having future or past data points) BD and FD are needed.
-\begin{enumerate}
-    \item Forward difference:
-    
-    The first derivative approximation,
-        \begin{align}
-            \frac{df}{dt} \approx \frac{f(t + \Delta t) -f(t)}{\Delta t} + \mathcal{O}(\Delta t)
-        \end{align}
-    Second derivative approximation,
-        \begin{align}
-            \frac{d^{2}f}{dt^{2}} \approx \frac{f(t + 2\Delta t) - 2f(t + \Delta t) + f(t)}{\Delta t^{2}} + \mathcal{O}(\Delta t)
-        \end{align}
-
-    \item Backward difference:
-
-    First derivative approximation,
-        \begin{align}
-            \frac{df}{dt} \approx \frac{f(t) - f(t - \Delta t)}{\Delta t} + \mathcal{O}(\Delta t)
-        \end{align}
-    Second derivative approximation,
-        \begin{align}
-            \frac{d^{2}f}{dt^{2}} \approx \frac{f(t) - 2f(t - \Delta t) + f(t - 2\Delta t)}{\Delta t^{2}} + \mathcal{O}(\Delta t)
-        \end{align}
-
-    \item Central difference:
-
-    First derivative approximation,
-        \begin{align}
-            \frac{df}{dt} \approx \frac{f(t + \Delta t) - f(t - \Delta t)}{2\Delta t} + \mathcal{O}(\Delta t^{2})
-        \end{align}
-    Second derivative approximation,
-        \begin{align}
-            \frac{d^{2}f}{dt^{2}} \approx \frac{f(t + \Delta t) - 2f(t) + f(t - \Delta t)}{\Delta t^{2}} + \mathcal{O}(\Delta t^{2})
-        \end{align}
-        
-\end{enumerate}
+We can approximate each derivative, also second derivatives, in three ways, forward difference (FD), backward difference (BD), and central difference (CD). Note that the central difference is the most accurate approximation, therefore this scheme is used.
+\begin{align}
+        \frac{df}{dt} \approx \frac{f(t + \Delta t) - f(t - \Delta t)}{2\Delta t} + \mathcal{O}(\Delta t^{2}) \\
+         \frac{d^{2}f}{dt^{2}} \approx \frac{f(t + \Delta t) - 2f(t) + f(t - \Delta t)}{\Delta t^{2}} + \mathcal{O}(\Delta t^{2})
+\end{align}        
 
 \section{Solving 1D Equation Model with Finite Differences}
 
-Applying these schemes to our equations derivatives, $u_{tt}(t, x)$, and $\Delta u(t, x)$ we obtain,
+The following steps were taken to solve the manufactured equation,
 
 \begin{enumerate}
-    \item FD
+    \item Discretizations of our space domain and time horizon.
         \begin{align}
-            u_{tt}(t,x) &\approx \frac{u(t+2\Delta t, x) + u(t,x) - 2u(t+\Delta t, x)}{\Delta t^2} \\
-            \Delta u(t,x) &\approx \frac{u(t, x+2\Delta x) + u(t,x) - 2u(t, x+\Delta x)}{\Delta x^2}
+            \Delta x = \frac{\Omega_{f} - \Omega_{0}}{N} \quad \implies \quad x_{i}= \Omega_{0} +i\Delta x \\
+            \Delta t = \frac{T-0}{M} \quad \implies \quad t_{j}= j\Delta t
         \end{align}
-    \item BD
+    \item Central difference scheme
         \begin{align}
-            u_{tt}(t,x) &\approx \frac{u(t-2\Delta t, x) + u(t,x) - 2u(t-\Delta t, x)}{\Delta t^2} \\
-            \Delta u(t,x) &\approx \frac{u(t, x-2\Delta x) + u(t,x) - 2u(t, x-\Delta x)}{\Delta x^2}
+            u_{tt}(t_{j}, x_{i}) &\approx \frac{u(t_{j+1}, x_{i}) - 2u(t_{j},x_{i}) + u(t_{j-1}, x_{i})}{\Delta t^2} \\
+            \Delta u(t_{j},x_{i}) &\approx \frac{u(t_{j}, x_{i+1}) - 2u(t_{j},x_{i}) + u(t_{j}, x_{i-1})}{\Delta x^2}
         \end{align}
-    \item CD
+    \item Approximating derivatives in the equation using matrix notation $U_{i}^{j} = u(t_{j}, x_{i})$, and $F_{i}^{j} = f(t_{j}, x_{i})$,
+        
         \begin{align}
-            u_{tt}(t,x) &\approx \frac{u(t+\Delta t, x) - u(t,x) + u(t-\Delta t, x)}{\Delta t^2} \\
-            \Delta u(t,x) &\approx \frac{u(t, x+\Delta x) - u(t,x) + u(t, x-\Delta x)}{\Delta x^2}
+            \frac{1}{\Delta t^2} \left( U_{i}^{j+1} - 2U_{i}^{j} + U_{i}^{j-1}\right) - \frac{c^2(x_i)}{\Delta x^2} \left( U_{i+1}^{j}- 2U_{i}^{j} + U_{i-1}^{j} \right) = F_{i}^{j}
         \end{align}
+
+    \item Solving for the next time step $U_{i}^{j+1}$,
+        \begin{align}
+            U_{i}^{j+1} = \frac{c^2(x_{i})\Delta t^2}{\Delta x^2}(U_{i+1}^{j} - 2U_{i}^{j}+ U_{i-1}^{j}) + \Delta t^{2}F_{i}^{j} - U_{i}^{j-1} + 2 U_{i}^{j}
+        \end{align}
+
+    \item Initializing using Taylor expansion approximation for $u(t_{1},x_i)\equiv u(\Delta t, x_{i})$
+        \begin{align}
+            u(\Delta t, x_{i}) = u(0, x_{i}) + \Delta t u_{t}(0, x_{i}) + \frac{\Delta t^2}{2}u_{tt}(0, x_i) + \mathcal{O}(\Delta t^3)
+        \end{align}
+        Using the initial conditions $u_{t}(0, x) = u_{1}(x)$, and $u(0, x_i) = u_{0}(x)$
+        \begin{align}
+            \implies u_{tt}(0, x_i) \approx \frac{2}{\Delta t^{2}} \left[ u(\Delta t, x_{i}) - u_{0}(x_{i}) - \Delta t u_{1}(x_{i})\right]
+        \end{align}
+        Using the given wave equation, initial condition $u_{1}(x_{i})=0$, the central difference approximation of $\Delta u(0, x) \equiv \Delta U_{i}^{0}$, and $\Delta t$ representing the first time step taken $j=1$,
+        \begin{align}
+            U_{i}^{1} = U_{i}^{0} + \frac{\Delta t^2}{2} \left[ c^{2}(x_i)\frac{U_{i+1}^{0} - 2U_{i}^{0}+ U_{i-1}^{0}}{\Delta x^2}+F_{i}^{0} \right]
+        \end{align}
+    
 \end{enumerate}
+
+The comparison between the numerical and exact solutions is shown in Figure one, with an $L^2$ error of just $3.03529e-03$, the numerical approximation is good for applying SINDy and variants.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{exact_vs_numerical.png}
+    \caption{Comparison between the finite differences numerical and exact solutions for the wave equation.}
+\end{figure}
 
 \clearpage
 \printbibliography
