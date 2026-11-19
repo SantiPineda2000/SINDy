@@ -1,102 +1,134 @@
 import numpy as np
-import skfem as fem
-from scipy.sparse import identity
-from scipy.sparse.linalg import splu
-from skfem.models import  mass
+import numpy.typing as npt
 
-m = fem.MeshLine(np.linspace(0.0, 100.0, 25))
-basis = fem.Basis(m, fem.ElementLineP1())
-N = basis.N
-def c_sqrd(x):
-    return (1.0 + x)**2
+from validate1d import Validate1D
 
-@fem.BilinearForm
-def weighted_laplace(u, v, w):
-    # Extracts the physical spatial coordinates at numerical integration points
-    x = w.x[0] 
-    return c_sqrd(x) * u.grad[0] * v.grad[0]
+def generate_wave_snapshots( 
+    T: tuple[float, float],
+    N: int,
+    M: int,
+    Omega: tuple[float, float] = (0.0, 1.0)
+) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+    '''
+    Generate snapshots of the 1D wave equation using
+    finite differences.
 
-# Assamble matrices
-K = weighted_laplace.assemble(basis)
-M = mass.assemble(basis)
-I = identity(N)
+    Parameters
+    ---
+    `T`: Time horizon (t_0, t_f).
 
-time_holder = {'t': 0.0} # Mutable container for time, to access time steps
+    `N`: Number of space intervals.
+    
+    `M`: Number of time intervals.
 
-@fem.LinearForm
-def source_term(v, w):
-    x = w.x[0]
-    t = time_holder['t']
-    f_val = (np.pi**2 * c_sqrd(x) - 1.0) * np.sin(np.pi * x) * np.cos(t)
-    return f_val * v
+    `Omega`: Spatial domain, defaults to (0.0, 1.0).
 
-# First order reduction setup
-A0 = fem.bmat([[I, None],
-               [None, M]], "csc") # TODO: ASK WHAT "csc" DOES!
-B0 = fem.bmat([[None, I],
-               [-K, None]], "csc")
+    Returns
+    ---
+    `U`: Numerical solution snapshots, shape (N, n_steps + 1).
 
-# Crank-Nicolson
-dt = .005
-theta = .5
-A = A0 + theta * B0 * dt
-B = A0 - (1. - theta) * B0 * dt
-backsolve = splu(A).solve
+    `spatial_grid`: Spatial discretization.
 
-# Initial conditions
-def initial_u(x):
-    return np.sin(np.pi * x[0])
-U0 = basis.project(initial_u)
-U = np.concatenate((U0, np.zeros(N)))
+    `time_grid`: Temporal discretization.
+    '''
+    # Discretizing space and time
+    t = np.linspace(T[0], T[1], M+1)
+    x = np.linspace(Omega[0], Omega[1], N+1)
+    # Calculating Delta t and x
+    dt = t[1] - t[0]
+    dx = x[1] - x[0]
 
-# timestepping
-def evolve(t, u):
-    while t < 1.0:
-        time_holder['t'] = t
+    # Defining the equation components
+    def c_sqrd_ok(x):
+        return (1 + x) **2
 
-        F = source_term.assemble(basis)
-        F_system = np.concatenate((np.zeros(N), F))
+    def c_sqrd_def(x):
+        '''Introduces a reduction of speed in two points of the space grid'''
+        mid = int(N * 0.5)
+        c_sqrd = np.ones_like(x)
+        c_sqrd[:mid-1] = (1+x[:mid-1])**2
+        c_sqrd[mid-1:mid+1] = 0.3*(1+x[mid-1:mid+1])**2
+        c_sqrd[mid+1:] = ((1+x[mid+1:])**2)
+        return c_sqrd
 
-        rhs = rhs = (A0 - (1.0 - theta) * B0 * dt) @ u + dt * ((1.0 - theta) * F_system_old + theta * F_system) if 'F_system_old' in locals() else (A0 - (1.0 - theta) * B0 * dt) @ u + dt * F_system #type:ignore
+    def f(t,x):
+        '''Forcing term equation'''
+        return (np.pi**2 * c_sqrd - 1.0) * np.sin(np.pi * x) * np.cos(t)
 
-        F_system_old = F_system
+    # Defining initial conditions
+    def u_0(x):
+        '''Initial condition at time 0'''
+        return np.sin(np.pi * x)
 
-        t += dt
-        time_holder["t"] = t
+    # Checking for stability
+    c_sqrd = c_sqrd_ok(x)
+    cfl = np.max(np.abs(c_sqrd)) * dt / dx
+    assert cfl < 1, f"Unstable time and space steps, with a cfl={cfl}"
 
-        F_new = source_term.assemble(basis)
-        F_system_new = np.concatenate((np.zeros(N), F_new))
+    # Solution matrix
+    U = np.zeros((N+1, M+1))
 
-        rhs = (A0 - (1.0 - theta) * B0 * dt) @ u + dt * (1.0 - theta) * F_system + dt * theta * F_system_new
-        F_system = F_system_new
-        
-        u = backsolve(rhs)
-        yield t, u
+    # Enforcing initial and Dirichlet boundary conditions
+    U[1:-1, 0] = u_0(x)[1:-1]
+
+    c_sqrd_int = c_sqrd[1:-1]
+    r2 = (dt / dx) ** 2
+
+    # Using Taylor Expansion Initialization j=0
+    lap_0 = U[2:, 0] - 2.0 * U[1:-1, 0] + U[:-2, 0]
+    U[1:-1, 1] = (
+        U[1:-1, 0]
+        + 0.5 * (dt ** 2) * (c_sqrd_int * (lap_0 / (dx ** 2)) + f(t[0], x)[1:-1])
+    )
+
+    # Step 4: Leapfrog steps for j >= 1
+    for j in range(1, M):
+        lap_j = U[2:, j] - 2.0 * U[1:-1, j] + U[:-2, j]
+        U[1:-1, j + 1] = (
+            c_sqrd_int * r2 * lap_j
+            + (dt ** 2) * f(t[j], x)[1:-1]
+            - U[1:-1, j - 1]
+            + 2.0 * U[1:-1, j]
+        )
+    return U, x, t
+
+def generate_exact_solution(
+        space_grid: npt.NDArray,
+        time_grid: npt.NDArray,
+    ) -> npt.NDArray:
+    '''
+    Generate the exact solution snapshot matrix of the PDE with homogeneous
+    Dirichlet boundary and initial conditions.
+
+    u(t, x) = sin(\\pi * x) cos(t)
+
+    Parameters:
+    ---
+    `space_grid`: The discretization of space used to solve the system.
+
+    `time_grid`: The discretization of time used to solve the system.
+
+    Returns:
+    ---
+    `snapshot_matrix`: The exact solution discretized at the provided time and space grids.
+    '''
+    return np.sin(np.pi * space_grid[:, None]) * np.cos(time_grid[None,:])
 
 if __name__ == "__main__":
-    from pathlib import Path
-    import matplotlib.pyplot as plt
-    import matplotlib.animation as anim
+    # Solve the equation numerically
+    U_num, spatial_grid, time_grid = generate_wave_snapshots((0.0, 1.0), N=20, M=100)
+    print(f"Snapshot matrix generated successfully!")
+    print(f"Matrix shape (x, time): {U_num.shape}")
+    print(f"Spatial grid range: [{spatial_grid[0]:.1f}, {spatial_grid[-1]:.1f}]")
+    print(f"Time steps collected: {len(time_grid)}")
 
-    save_path = Path("./assets/1DWave")
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ix = np.argsort(m.p[0])
-    
-    # Plot initial condition vs ground truth comparison setup
-    line_fem, = ax.plot(m.p[0, ix], U0[ix], label='FEM Solution', color='blue')
-    ax.set_xlim(0, 100)
-    ax.set_ylim(-1.2, 1.2)
-    ax.legend()
-    ax.set_xlabel("x")
-    ax.set_ylabel("u(t, x)")
+    # Generating exact solution from the manufactured equation
+    U_ext = generate_exact_solution(spatial_grid, time_grid)
 
-    def update(t_u):
-        t, u = t_u
-        u_displacement, _ = np.split(u, [M.shape[0]]) #type:ignore
-        line_fem.set_ydata(u_displacement[ix])
-        ax.set_title(f"1D Wave Equation with c(x) = 1+x | Time t = {t:.3f}")
-        return line_fem,
+    # Validation of the numerical solution
+    val = Validate1D(U_num, U_ext, spatial_grid, time_grid, 'assets')
 
-    # Run animation / simulation across t in (0, 1)
-    animation = anim.FuncAnimation(fig, update, evolve(0.0, U), interval=30, blit=False)
-    animation.save(save_path.with_suffix(".gif"), "imagemagick")
+    val.plot_solution() # Ploting the exact solution on a space-time surface plot.
+    val.plot_solution(False) # Ploting the numerical solution on a space-time surface plot.
+    val.plot_solution_comparison() # Ploting the comparison heatmaps.
+    val.calculate_error_metrics() # Printing the error matrics MAE and l2 to console.
