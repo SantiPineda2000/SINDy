@@ -169,3 +169,45 @@ class Validate1D(BaseGraphingFunctions):
         print(f"--- Error Metrics Computed ---")
         print(f"Maximum Absolute Error:     {max_error:.5e}")
         print(f"L2 Error: {l2_error:.5e}")
+        return
+
+    def plot_time_steps(self, 
+            U_num_name:str = "Numerical", 
+            U_ext_name:str = "Exact"
+        ) -> None:
+        '''
+        Plot 4 time steps of both solutions passed to this class.
+        
+        Parameters
+        ---
+        `U_num_name`: optional string to label U_num plotted lines.
+        `U_ext_name`: optional string to label U_ext plotted lines.
+        '''
+        fig, axes = plt.subplots(2, 2)
+
+        m = len(self.time_grid)
+        m_1_4 = m // 4
+        time_steps = [0, m_1_4, m_1_4*2, m-1]
+
+        for idx, t_idx in enumerate(time_steps):
+            i, j = divmod(idx, 2)
+            ax = axes[i, j]
+
+            ax.plot(self.space_grid, self.U_ext[:, t_idx], alpha=0.7,label=U_ext_name)
+            ax.plot(self.space_grid, self.U_num[:, t_idx], linestyle="--", label=U_num_name)
+
+            ax.set_ylim(0,1)
+            ax.set_title(f"t = {self.time_grid[t_idx]:.3g}")
+            if i==0:
+                ax.set_xticklabels([])
+            else:
+                ax.set_xlabel("x")
+            if j==1:
+                ax.set_yticklabels([])
+            else:
+                ax.set_ylabel("u(t, x)")
+            ax.grid()
+            ax.legend()
+
+        self._saveFigure(fig, "4_time_steps")
+        return
