@@ -7,7 +7,8 @@ def generate_wave_snapshots(
     T: tuple[float, float],
     N: int,
     M: int,
-    Omega: tuple[float, float] = (0.0, 1.0)
+    Omega: tuple[float, float] = (0.0, 1.0),
+    speed_reduction: None | float = None
 ) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
     '''
     Generate snapshots of the 1D wave equation using
@@ -22,6 +23,8 @@ def generate_wave_snapshots(
     `M`: Number of time intervals.
 
     `Omega`: Spatial domain, defaults to (0.0, 1.0).
+
+    `speed_reduction`: Percentage to reduce the speed by, must be between 0 and 1.
 
     Returns
     ---
@@ -42,14 +45,16 @@ def generate_wave_snapshots(
     def c_sqrd_ok(x):
         return (1 + x) **2
 
-    def c_sqrd_def(x):
-        '''Introduces a reduction of speed in two points of the space grid'''
+    def c_sqrd_def(x, r:float=0.5):
+        '''Introduces a reduction of speed in 2 points of the space grid with r value'''
         mid = int(N * 0.5)
         c_sqrd = np.ones_like(x)
         c_sqrd[:mid-1] = (1+x[:mid-1])**2
-        c_sqrd[mid-1:mid+1] = 0.3*(1+x[mid-1:mid+1])**2
+        c_sqrd[mid-1:mid+1] = r * ((1-x[mid-1:mid+1])**2)
         c_sqrd[mid+1:] = ((1+x[mid+1:])**2)
         return c_sqrd
+    
+    c_sqrd = c_sqrd_def(x, r=1.0-speed_reduction) if speed_reduction is not None else c_sqrd_ok(x)
 
     def f(t,x):
         '''Forcing term equation'''
@@ -61,7 +66,6 @@ def generate_wave_snapshots(
         return np.sin(np.pi * x)
 
     # Checking for stability
-    c_sqrd = c_sqrd_ok(x)
     cfl = np.max(np.abs(c_sqrd)) * dt / dx
     assert cfl < 1, f"Unstable time and space steps, with a cfl={cfl}"
 
@@ -132,3 +136,11 @@ if __name__ == "__main__":
     val.plot_solution(False) # Ploting the numerical solution on a space-time surface plot.
     val.plot_solution_comparison() # Ploting the comparison heatmaps.
     val.calculate_error_metrics() # Printing the error matrics MAE and l2 to console.
+
+    # Introducing a speed reduction of 0.5%
+    U_sr, _, _ = generate_wave_snapshots((0.0, 1.0), 20, 100, speed_reduction=0.5)
+
+    # Checking if the speed was reduced
+    print("---Comparing constant and reduced wave speeds---")
+    val2 = Validate1D(U_num, U_sr, spatial_grid, time_grid, 'assets')
+    val2.plot_time_steps(U_num_name="No defect", U_ext_name=f"Defect at x={spatial_grid[9]}, {spatial_grid[10]}")
